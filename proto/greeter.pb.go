@@ -18,8 +18,9 @@ import fmt "fmt"
 import math "math"
 
 import (
+	client "github.com/micro/go-micro/client"
+	server "github.com/micro/go-micro/server"
 	context "golang.org/x/net/context"
-	grpc "google.golang.org/grpc"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -72,29 +73,37 @@ func init() {
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+var _ client.Option
+var _ server.Option
 
 // Client API for Greeter service
 
 type GreeterClient interface {
-	Hello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error)
+	Hello(ctx context.Context, in *HelloRequest, opts ...client.CallOption) (*HelloResponse, error)
 }
 
 type greeterClient struct {
-	cc *grpc.ClientConn
+	c           client.Client
+	serviceName string
 }
 
-func NewGreeterClient(cc *grpc.ClientConn) GreeterClient {
-	return &greeterClient{cc}
+func NewGreeterClient(serviceName string, c client.Client) GreeterClient {
+	if c == nil {
+		c = client.NewClient()
+	}
+	if len(serviceName) == 0 {
+		serviceName = "greeter"
+	}
+	return &greeterClient{
+		c:           c,
+		serviceName: serviceName,
+	}
 }
 
-func (c *greeterClient) Hello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error) {
+func (c *greeterClient) Hello(ctx context.Context, in *HelloRequest, opts ...client.CallOption) (*HelloResponse, error) {
+	req := c.c.NewRequest(c.serviceName, "Greeter.Hello", in)
 	out := new(HelloResponse)
-	err := grpc.Invoke(ctx, "/Greeter/Hello", in, out, c.cc, opts...)
+	err := c.c.Call(ctx, req, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,43 +112,20 @@ func (c *greeterClient) Hello(ctx context.Context, in *HelloRequest, opts ...grp
 
 // Server API for Greeter service
 
-type GreeterServer interface {
-	Hello(context.Context, *HelloRequest) (*HelloResponse, error)
+type GreeterHandler interface {
+	Hello(context.Context, *HelloRequest, *HelloResponse) error
 }
 
-func RegisterGreeterServer(s *grpc.Server, srv GreeterServer) {
-	s.RegisterService(&_Greeter_serviceDesc, srv)
+func RegisterGreeterHandler(s server.Server, hdlr GreeterHandler, opts ...server.HandlerOption) {
+	s.Handle(s.NewHandler(&Greeter{hdlr}, opts...))
 }
 
-func _Greeter_Hello_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(HelloRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(GreeterServer).Hello(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/Greeter/Hello",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GreeterServer).Hello(ctx, req.(*HelloRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+type Greeter struct {
+	GreeterHandler
 }
 
-var _Greeter_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "Greeter",
-	HandlerType: (*GreeterServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Hello",
-			Handler:    _Greeter_Hello_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/greeter.proto",
+func (h *Greeter) Hello(ctx context.Context, in *HelloRequest, out *HelloResponse) error {
+	return h.GreeterHandler.Hello(ctx, in, out)
 }
 
 func init() { proto.RegisterFile("proto/greeter.proto", fileDescriptor0) }
