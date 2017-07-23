@@ -5,11 +5,20 @@ import (
 	"golang.org/x/net/context"
 	"fmt"
 	"github.com/micro/go-micro"
+	"time"
 )
+var counter int
 
 type Greeter struct{}
 
 func (*Greeter) Hello(ctx context.Context, req *proto.HelloRequest, rsp *proto.HelloResponse) error {
+	counter++
+	if counter > 7 && counter < 15 {
+		time.Sleep(1000 * time.Millisecond)
+	} else {
+		time.Sleep(100 * time.Millisecond)
+	}
+	
 	rsp.Greeting = "Hello " + req.Name
 	
 	fmt.Print("Responding with %s\n", rsp.Greeting)

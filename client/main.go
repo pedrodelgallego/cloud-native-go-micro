@@ -6,6 +6,10 @@ import (
 	"time"
 	"context"
 	"fmt"
+	hystrix "github.com/afex/hystrix-go/hystrix"
+	breaker "github.com/micro/go-plugins/wrapper/breaker/hystrix"
+	"net/http"
+	"net"
 )
 
 func main() {
@@ -17,7 +21,20 @@ func main() {
 		}),
 	)
 	
-	service.Init()
+	service.Init(
+		micro.WrapClient(breaker.NewClientWrapper())
+	)
+	
+	// override some default values for the Hystrix breaker
+	hystrix.DefaultVolumeThreshold = 3
+	hystrix.DefaultErrorPercentThreshold = 75
+	hystrix.DefaultTimeout = 500
+	hystrix.DefaultSleepWindow = 3500
+	
+	// export Hystrix stream
+	hystrixStreamHandler := hystrix.NewStreamHandler()
+	hystrixStreamHandler.Start()
+	go http.ListenAndServe(net.JoinHostPort("", "8081"), hystrixStreamHandler)
 	
 	greeter := proto.NewGreeterClient("greeter", service.Client())
 	callEvery(3*time.Second, greeter, hello)

@@ -12,8 +12,8 @@ services:
 
   go-micro-server:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
+      dockerfile: Dockerfile
     image: go-micro-server:1.0.1
     environment:
     - CONSUL_HTTP_ADDR=consul:8500
@@ -24,14 +24,21 @@ services:
 
   go-micro-client:
     build:
-      context: .
-      dockerfile: client/Dockerfile
+      context: ./client
+      dockerfile: Dockerfile
     image: go-micro-client:1.0.1
     environment:
     - CONSUL_HTTP_ADDR=consul:8500
     depends_on:
       - consul
       - go-micro-server
+    networks:
+      - sky-net
+
+  hystrix-dashboard:
+    image: mlabouardy/hystrix-dashboard:latest
+    ports:
+      - "9002:9002"
     networks:
       - sky-net
 
